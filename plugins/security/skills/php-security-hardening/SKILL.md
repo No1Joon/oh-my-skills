@@ -16,8 +16,8 @@ Load only what the current step needs.
 | File | Load when |
 |---|---|
 | `references/advisories/*.md` | Always check the index in §2; load the matching file when its advisory is open |
-| `references/grep-patterns.md` | Step 5 code-level checks — copy-paste-ready ripgrep patterns (the §5 table is conceptual only) |
-| `references/platforms-by-region.md` | Step 4 of a full audit, or the user names a specific platform or country |
+| `references/grep-patterns.md` | §5 code-level checks — copy-paste-ready ripgrep patterns (the §5 table is conceptual only) |
+| `references/platforms-by-region.md` | §4 (advisory sources) and §6 (platform hardening), or the user names a specific platform or country |
 | `references/incident-response.md` | Mode C, or any host was exposed while vulnerable to a critical RCE |
 
 ## 0. Ground rules
@@ -48,7 +48,7 @@ While any §2 advisory is open, run its quick runtime check at the start of **ev
 Maintenance:
 - Before acting on a snapshot, re-check php.net news and `github.com/php/php-src/security/advisories` for newer releases, regressions and CISA KEV status.
 - Add a new runtime-level emergency as a new file in `references/advisories/` and a row here.
-- Mark a row `Closed` once the user's fleet is patched and the advisory is more than 90 days old.
+- Status describes the advisory, not any one user's fleet: maintainers mark a row `Closed` once the advisory is more than 90 days old and no newer release or regression has followed. A `Closed` advisory still applies to any host found running an affected version.
 
 ## 3. Stack fingerprinting
 
@@ -97,7 +97,7 @@ Record each finding as `ID · affected range · installed · fixed in · KEV yes
 
 Search custom code first (themes, in-house plugins, controllers). Fix vendor core by updating, not by patching it.
 
-> **Patterns:** the table below is conceptual (what each class looks like and how to fix it). For the actual commands, load `references/grep-patterns.md` — those regexes are in code blocks so they paste into `rg` without the pipe/`$` escaping a Markdown table forces. Do **not** retype a regex from this table; it would be Markdown-escaped and match nothing.
+> **Patterns:** the table below is conceptual (what each class looks like and how to fix it). For runnable search commands, load `references/grep-patterns.md`; its regexes sit in code blocks so they paste into `rg` unchanged. Keep regexes out of Markdown tables: table syntax forces `\|` escaping, which breaks them.
 
 | Class | What it looks like | Fix |
 |---|---|---|
@@ -120,7 +120,7 @@ Search custom code first (themes, in-house plugins, controllers). Fix vendor cor
 | Header/mail injection | `header()` / `mail()` built with request input | Strip CR/LF; use a mail library |
 | SSTI | User-controlled Twig/Smarty/Blade template strings | Never compile user input as templates; sandbox if unavoidable |
 | Open redirect | `header('Location: ' . $_GET[...])` | Allowlist or relative-path-only redirects |
-| Information exposure | `phpinfo(`, `var_dump(`, debug toolbars, `.env`/`.git` in webroot | Remove; move secrets out of webroot; block at web server |
+| Information exposure | `phpinfo()`, `var_dump()`, debug toolbars, `.env`/`.git` in webroot | Remove; move secrets out of webroot; block at web server |
 | Payment tampering | PG return/callback trusting client-sent amount | Compare order total in DB with PG-approved amount server-side; verify webhook signature; idempotent approval |
 | **Fatal-error resilience** | Uncaught errors / timeouts in callbacks, upload and import handlers, shutdown/cleanup code; deprecated per-request `ini_set` | Catch and handle errors, bound input sizes, avoid attacker-controlled memory blowups. Reduces the PHP2Shell CVE-2026-109619 attack surface and DoS risk generally |
 
@@ -158,6 +158,7 @@ Check that the platform doesn't need a disabled function before applying (some b
 
 ### Web server
 - Block PHP execution in upload, cache and data directories (Apache: `php_admin_flag engine off` or a deny rule; nginx: `location ~* ^/(uploads|data|cache)/.*\.php$ { deny all; }`).
+  - **nginx order matters:** regex `location` blocks are checked in the order they appear and the first match wins. Put this deny block **above** the generic `location ~ \.php$` (fastcgi) block, or the PHP handler matches first and the deny never runs. Verify with a test request to a harmless `.php` file in the directory (expect 403), then delete it.
 - Deny `.env`, `.git`, `composer.*`, `*.sql`, `*.bak`, `*.zip`, `.user.ini`, `.htaccess` over HTTP.
 - Security headers: `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Strict-Transport-Security`.
 - **Egress filtering**: web workers rarely need arbitrary outbound access; restricting it limits webshell callbacks and SSRF impact.

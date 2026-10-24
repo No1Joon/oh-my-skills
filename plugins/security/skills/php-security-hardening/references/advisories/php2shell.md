@@ -34,11 +34,16 @@ Attempts observed from **2026-10-17**, before disclosure; broad scanning since. 
    - Containers: inspect the image actually running (`docker inspect` digest), then check PHP inside it
    - cPanel/CloudLinux alt-php, Plesk, DirectAdmin, BT Panel: list every installed PHP version and which sites use each
 3. **Confirm distro backports via changelog**, not version string:
-   - Debian/Ubuntu: `apt changelog php8.3-fpm | grep -E 'CVE-2026-10961[89]'`
+   - Debian/Ubuntu (offline, check this first — it reflects what is actually installed): `zgrep -E 'CVE-2026-10961[89]' /usr/share/doc/php8.3-*/changelog.Debian.gz`
+   - Debian/Ubuntu (online; fails without network access to the changelog server): `apt changelog php8.3-fpm | grep -E 'CVE-2026-10961[89]'`
    - RHEL/Alma/Rocky/Amazon Linux: `rpm -q --changelog php-fpm | grep -E 'CVE-2026-10961[89]'`
    - Third-party repos (sury.org, Remi): check the repo's release notes
 4. **Patch, then restart every worker.** Use a full restart, not a graceful reload, so no old worker survives. For mod_php, restart Apache. For containers, rebuild from a patched base image and redeploy; do not patch running containers in place.
-5. **Verify on the running process.** Re-check the SAPI version or changelog, and confirm no worker predates the restart (`ps -o pid,lstart,cmd -C php-fpm`).
+5. **Verify on the running process.** Re-check the SAPI version or changelog, and confirm no worker predates the restart:
+   ```bash
+   ps -eo pid,lstart,args | grep -E '[p]hp-fpm|[a]pache2|[h]ttpd'
+   ```
+   Do **not** use `ps -C php-fpm`: `-C` matches the exact process name, and Debian/Ubuntu run the versioned binary `php-fpm8.3`, so it returns nothing and falsely looks like "no old workers".
 6. **Run `incident-response.md`** on every host that was exposed and unpatched at any point since the window start. Patching does not remove a backdoor that is already there.
 
 ## If patching must wait (partial — never report as fixed)

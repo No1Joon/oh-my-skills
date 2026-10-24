@@ -19,12 +19,14 @@ A match on vendor/core code is fixed by updating that dependency, not by editing
 rg -n -t php '(->query|mysqli_query|mysql_query|sql_query)\s*\(.*\$' .
 
 # SQL injection — request var interpolated into a SELECT/INSERT/UPDATE/DELETE
-rg -n -t php '(SELECT|INSERT|UPDATE|DELETE).*\$_(GET|POST|REQUEST|COOKIE)' .
+# -i is required: much PHP code (e.g. Gnuboard) writes SQL in lowercase.
+rg -n -i -t php '(SELECT|INSERT|UPDATE|DELETE).*\$_(GET|POST|REQUEST|COOKIE)' .
 
 # Command execution sinks
 rg -n -t php '\b(system|exec|shell_exec|passthru|popen|proc_open|pcntl_exec)\s*\(' .
 
-# Backtick command execution
+# Backtick command execution — NOISY: MySQL identifier quoting inside SQL strings
+# (e.g. "ALTER TABLE `{$table}`") also matches. Skip hits that sit inside a SQL string.
 rg -n -t php '`[^`]*\$' .
 
 # Code execution sinks
@@ -41,8 +43,9 @@ rg -n -t php 'preg_replace\s*\(\s*.[^,]*/e' .
 rg -n -t php 'echo\s+.*\$_(GET|POST|REQUEST|COOKIE)' .
 rg -n -t php '<\?=\s*\$_(GET|POST|REQUEST|COOKIE)' .
 
-# XSS — template auto-escape turned off
-rg -n -t php '\{!!|\|\s*raw|nofilter' .
+# XSS — template auto-escape turned off (Blade, Twig, Smarty)
+# Do NOT use -t php here: Twig (.twig) and Smarty (.tpl) templates are not PHP files.
+rg -n -g '*.php' -g '*.twig' -g '*.tpl' '\{!!|\|\s*raw|nofilter' .
 
 # File inclusion with a variable path (LFI/RFI)
 rg -n -t php '(include|require)(_once)?\s*\(?\s*\$' .
@@ -90,8 +93,11 @@ rg -n -t php "header\s*\(\s*['\"]Location:" .
 # Information disclosure
 rg -n -t php '\b(phpinfo|var_dump|var_export|print_r|debug_zval_dump)\s*\(' .
 
-# Secrets or debug flags in the webroot
-rg -n -t php 'display_errors\s*=\s*(On|1|true)' .
+# Debug output switched on — PHP code sets it with ini_set(), not "key = value"
+rg -n -t php "ini_set\s*\(\s*['\"]display_errors['\"]\s*,\s*['\"]?(1|on|true)" .
+
+# Debug output switched on in ini-style config (php.ini, .user.ini, .htaccess)
+rg -n -i -g '*.ini' -g '.user.ini' -g '.htaccess' 'display_errors\s*(=\s*|\s+)(On|1|true)' .
 ```
 
 ## Backdoor / obfuscation sweep (incident response)
@@ -109,7 +115,8 @@ rg -n -t php '\$_(GET|POST|REQUEST|COOKIE|SERVER)\s*\[[^]]*\]\s*\(' .
 
 ## Notes
 
-- `-t php` limits ripgrep to PHP files; drop it to also scan `.inc`, `.phtml`, templates.
+- `-t php` covers `*.php`, `*.php3`–`*.php8`, `*.pht` and `*.phtml`. It does **not** cover
+  `.inc` includes or templates (`.twig`, `.tpl`); add `-g '*.inc'` or drop `-t php` to scan those.
 - Add `-g '!vendor/' -g '!node_modules/'` to skip dependencies, then audit those by
   version instead (`composer audit`).
 - These are first-pass filters. Confirm each hit by reading the surrounding code: a
