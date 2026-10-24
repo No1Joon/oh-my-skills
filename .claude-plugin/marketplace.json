@@ -1,0 +1,14 @@
+{
+  "name": "oh-my-skills",
+  "description": "No1Joon's Claude Code skills, grouped into plugins by domain",
+  "owner": {
+    "name": "No1Joon"
+  },
+  "plugins": [
+    {
+      "name": "security",
+      "source": "./plugins/security",
+      "description": "Security review and hardening skills (PHP code, runtime, server config, emergency advisories)"
+    }
+  ]
+}

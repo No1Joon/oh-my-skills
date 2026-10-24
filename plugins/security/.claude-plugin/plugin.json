@@ -1,0 +1,11 @@
+{
+  "name": "security",
+  "displayName": "Security",
+  "version": "0.1.0",
+  "description": "Security review and hardening skills (PHP code, runtime, server config, emergency advisories)",
+  "author": {
+    "name": "No1Joon"
+  },
+  "repository": "https://github.com/No1Joon/oh-my-skills",
+  "keywords": ["security", "php", "hardening", "vulnerability", "php2shell"]
+}
