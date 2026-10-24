@@ -16,6 +16,7 @@ Load only what the current step needs.
 | File | Load when |
 |---|---|
 | `references/advisories/*.md` | Always check the index in §2; load the matching file when its advisory is open |
+| `references/grep-patterns.md` | Step 5 code-level checks — copy-paste-ready ripgrep patterns (the §5 table is conceptual only) |
 | `references/platforms-by-region.md` | Step 4 of a full audit, or the user names a specific platform or country |
 | `references/incident-response.md` | Mode C, or any host was exposed while vulnerable to a critical RCE |
 
@@ -96,25 +97,27 @@ Record each finding as `ID · affected range · installed · fixed in · KEV yes
 
 Search custom code first (themes, in-house plugins, controllers). Fix vendor core by updating, not by patching it.
 
-| Class | Search pattern (grep/rg) | Fix |
+> **Patterns:** the table below is conceptual (what each class looks like and how to fix it). For the actual commands, load `references/grep-patterns.md` — those regexes are in code blocks so they paste into `rg` without the pipe/`$` escaping a Markdown table forces. Do **not** retype a regex from this table; it would be Markdown-escaped and match nothing.
+
+| Class | What it looks like | Fix |
 |---|---|---|
-| SQL injection | `->query(` / `mysqli_query(` / `sql_query(` with string concatenation or interpolation | Prepared statements (PDO/mysqli), query-builder bindings; for Gnuboard wrap queries with bound params or cast integers |
-| XSS | `echo \$_(GET\|POST\|REQUEST)`, `<?=\s*\$`, Blade `{!!`, Twig `\|raw`, Smarty `nofilter` | Context-aware escaping (`htmlspecialchars($v, ENT_QUOTES, 'UTF-8')`), keep template auto-escape on, add CSP |
-| Command execution | `system(`, `exec(`, `shell_exec(`, `passthru(`, `popen(`, `proc_open(`, backticks | Remove; else allowlist + `escapeshellarg` |
-| Code execution | `eval(`, `assert(` with strings, `create_function(`, `preg_replace` with `/e` | Remove; replace dynamic logic with lookup maps |
-| File inclusion | `(include\|require)(_once)?\s*\(?\s*\$` | Allowlist map, never user paths; `allow_url_include=Off` |
-| File upload | `move_uploaded_file`, `$_FILES` | Extension allowlist + server-side MIME check, random filenames, store outside webroot or block PHP execution in upload dirs |
-| Deserialization | `unserialize(` on user input; `phar://` reachable via file functions | `json_decode`; else `['allowed_classes' => false]`; reject `phar://` and other wrappers in user paths |
-| SSRF | `file_get_contents(\$`, `fopen(\$`, `CURLOPT_URL` from input | Host allowlist, block private/link-local ranges after DNS resolution, don't follow redirects blindly |
-| Path traversal | `fopen\|file_put_contents\|unlink\|readfile` with input | `realpath` then enforce base-directory prefix |
-| Variable pollution | `extract(\$_`, `\$\$`, `parse_str(` with one argument | Remove; assign explicitly |
-| Type juggling | `==` on hashes/tokens, `strcmp(` for auth | `hash_equals`, `===` |
-| Weak crypto/randomness | `md5(`/`sha1(` for passwords, `rand(`/`mt_rand(` for tokens | `password_hash`/`password_verify`, `random_bytes`/`random_int` |
+| SQL injection | A `->query` / `mysqli_query` / `sql_query` call built with string concatenation or an interpolated request variable | Prepared statements (PDO/mysqli), query-builder bindings; for Gnuboard wrap queries with bound params or cast integers |
+| XSS | A request value echoed directly, or template auto-escape turned off (Blade `{!!`, Twig raw filter, Smarty `nofilter`) | Context-aware escaping (`htmlspecialchars($v, ENT_QUOTES, 'UTF-8')`), keep template auto-escape on, add CSP |
+| Command execution | `system`, `exec`, `shell_exec`, `passthru`, `popen`, `proc_open`, or backticks | Remove; else allowlist + `escapeshellarg` |
+| Code execution | `eval`, `assert` on a string, `create_function`, or `preg_replace` with the `/e` modifier | Remove; replace dynamic logic with lookup maps |
+| File inclusion | `include` / `require` with a variable path | Allowlist map, never user paths; `allow_url_include=Off` |
+| File upload | `move_uploaded_file`, `$_FILES` handling | Extension allowlist + server-side MIME check, random filenames, store outside webroot or block PHP execution in upload dirs |
+| Deserialization | `unserialize` on user input; a `phar://` path reachable via file functions | `json_decode`; else `['allowed_classes' => false]`; reject `phar://` and other wrappers in user paths |
+| SSRF | `file_get_contents`, `fopen`, or a cURL URL built from input | Host allowlist, block private/link-local ranges after DNS resolution, don't follow redirects blindly |
+| Path traversal | `fopen`, `file_put_contents`, `unlink`, `readfile` with request input | `realpath` then enforce base-directory prefix |
+| Variable pollution | `extract($_...)`, variable variables, one-argument `parse_str` | Remove; assign explicitly |
+| Type juggling | `==` on hashes/tokens, `strcmp` used for auth | `hash_equals`, `===` |
+| Weak crypto/randomness | `md5`/`sha1` for passwords, `rand`/`mt_rand`/`uniqid` for tokens | `password_hash`/`password_verify`, `random_bytes`/`random_int` |
 | CSRF | State-changing POST without token check | Framework CSRF middleware; Gnuboard `get_token()`/`check_token()` family |
 | Broken access control / IDOR | Record fetched by ID from request without owner/role check | Enforce authorization on every object access (policies/voters/middleware) |
 | Mass assignment | `Model::create($request->all())`, `$guarded = []` | Explicit `$fillable` / DTOs |
 | Session | No `session_regenerate_id(true)` on login/privilege change | Regenerate; strict cookie flags (§7) |
-| Header/mail injection | `header(` / `mail(` extra headers from input | Strip CR/LF; use a mail library |
+| Header/mail injection | `header()` / `mail()` built with request input | Strip CR/LF; use a mail library |
 | SSTI | User-controlled Twig/Smarty/Blade template strings | Never compile user input as templates; sandbox if unavoidable |
 | Open redirect | `header('Location: ' . $_GET[...])` | Allowlist or relative-path-only redirects |
 | Information exposure | `phpinfo(`, `var_dump(`, debug toolbars, `.env`/`.git` in webroot | Remove; move secrets out of webroot; block at web server |

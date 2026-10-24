@@ -1,7 +1,7 @@
 {
   "name": "security",
   "displayName": "Security",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Security review and hardening skills (PHP code, runtime, server config, emergency advisories)",
   "author": {
     "name": "No1Joon"
